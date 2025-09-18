@@ -1,0 +1,42 @@
+name = "chess-ai-game"
+main = "src/index.js"
+compatibility_date = "2024-01-01"
+account_id = "85e817766650eb9326a9e02779d5528f"
+
+# 靜態檔案配置
+[assets]
+directory = "static"
+binding = "ASSETS"
+
+[ai]
+binding = "AI"
+
+[durable_objects]
+bindings = [
+  { name = "GAME_ROOM", class_name = "GameRoom" },
+  { name = "LOBBY", class_name = "Lobby" }
+]
+
+# Durable Objects migrations
+[[migrations]]
+tag = "v1"
+new_classes = ["GameRoom", "Lobby"]
+
+[[kv_namespaces]]
+binding = "USERS"
+id = "bc0a40919086419ea1d8c24d67d7d4c2"
+
+[[kv_namespaces]]
+binding = "GAMES"
+id = "a40c55742c964f2f9ff545a75db20005"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "chess-game-database"
+database_id = "7b59d552-5209-4808-80d5-a532b5609d44"
+
+[env.production]
+name = "chess-ai-game-prod"
+
+[env.staging]
+name = "chess-ai-game-staging"

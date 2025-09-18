@@ -1,0 +1,35 @@
+{
+  "name": "chess-ai-game",
+  "version": "1.0.0",
+  "description": "AI 西洋棋 Web Game 使用 Cloudflare Workers",
+  "main": "src/index.js",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "deploy:prod": "wrangler deploy --env production",
+    "deploy:staging": "wrangler deploy --env staging",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "echo \"No linting configured\" && exit 0",
+    "format": "echo \"No formatting configured\" && exit 0",
+    "build": "echo \"No build step required for Workers\" && exit 0",
+    "preview": "wrangler dev --local",
+    "tail": "wrangler tail",
+    "kv:list": "wrangler kv:namespace list",
+    "d1:list": "wrangler d1 list"
+  },
+  "dependencies": {
+    "chess.js": "^1.0.0-beta.6",
+    "uuid": "^9.0.0"
+  },
+  "devDependencies": {
+    "wrangler": "^4.33.2"
+  },
+  "keywords": [
+    "chess",
+    "ai",
+    "cloudflare",
+    "workers"
+  ],
+  "author": "Your Name",
+  "license": "MIT"
+}

@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 西洋棋遊戲</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <script src="/static/js/chess-wrapper.js"></script>
+</head>
+<body>
+    <div id="app">
+        <!-- 載入視圖 -->
+        <div id="loadingView" class="view">
+            <div id="loading">
+                <div class="loading-spinner"></div>
+                載入中...
+            </div>
+        </div>
+
+        <!-- 登入視圖 -->
+        <div id="loginView" class="view">
+            <div class="auth-container">
+                <div class="card">
+                    <div class="card-header">
+                        <h1>♔ 西洋棋遊戲</h1>
+                        <p>登入您的帳號開始遊戲</p>
+                    </div>
+                    <form id="loginForm">
+                        <div class="form-group">
+                            <label for="loginUsername">使用者名稱</label>
+                            <input type="text" id="loginUsername" name="username" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="loginPassword">密碼</label>
+                            <input type="password" id="loginPassword" name="password" class="form-control" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary" style="width: 100%;">登入</button>
+                    </form>
+                    <div class="auth-switch">
+                        <p>還沒有帳號？ <a href="#" class="switch-view-link" data-view="register">立即註冊</a></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 註冊視圖 -->
+        <div id="registerView" class="view">
+            <div class="auth-container">
+                <div class="card">
+                    <div class="card-header">
+                        <h1>♔ 西洋棋遊戲</h1>
+                        <p>建立新帳號</p>
+                    </div>
+                    <form id="registerForm">
+                        <div class="form-group">
+                            <label for="registerUsername">使用者名稱</label>
+                            <input type="text" id="registerUsername" name="username" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="registerPassword">密碼</label>
+                            <input type="password" id="registerPassword" name="password" class="form-control" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="confirmPassword">確認密碼</label>
+                            <input type="password" id="confirmPassword" name="confirmPassword" class="form-control" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary" style="width: 100%;">註冊</button>
+                    </form>
+                    <div class="auth-switch">
+                        <p>已有帳號？ <a href="#" class="switch-view-link" data-view="login">立即登入</a></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 大廳視圖 -->
+        <div id="lobbyView" class="view">
+            <div class="lobby-header">
+                <h1>♔ 西洋棋大廳</h1>
+                <p>歡迎來到 AI 西洋棋遊戲世界</p>
+            </div>
+
+            <div class="lobby-actions">
+                <button class="btn btn-primary create-room-btn">建立房間</button>
+                <button class="btn btn-secondary refresh-lobby-btn">重新整理</button>
+                <button class="btn btn-warning admin-btn">🔧 管理後台</button>
+                <button class="btn btn-outline logout-btn">登出</button>
+            </div>
+
+            <!-- 建立房間表單 -->
+            <div id="createRoomForm" class="create-room-form" style="display: none;">
+                <h3>建立新房間</h3>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="roomName">房間名稱</label>
+                        <input type="text" id="roomName" class="form-control" placeholder="輸入房間名稱" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="roomRules">遊戲規則</label>
+                        <select id="roomRules" class="form-control">
+                            <option value="Standard">標準規則</option>
+                            <option value="Blitz">快棋</option>
+                            <option value="Rapid">中速棋</option>
+                            <option value="Classical">古典棋</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="allowSpectators">
+                        <label for="allowSpectators">允許觀戰</label>
+                    </div>
+                    <div class="checkbox-group">
+                        <input type="checkbox" id="allowAI">
+                        <label for="allowAI">允許 AI 對手</label>
+                    </div>
+                </div>
+                <div style="text-align: center;">
+                    <button class="btn btn-primary create-room-submit-btn">建立房間</button>
+                    <button class="btn btn-secondary hide-create-room-btn">取消</button>
+                </div>
+            </div>
+
+            <!-- 房間列表 -->
+            <div id="roomList" class="room-list">
+                <!-- 房間項目將由 JavaScript 動態生成 -->
+            </div>
+        </div>
+
+        <!-- 管理後台視圖 -->
+        <div id="adminView" class="view">
+            <div class="admin-container">
+                <div class="admin-header">
+                    <h1>🔧 管理後台</h1>
+                    <p>房間管理和系統監控</p>
+                </div>
+
+                <div class="admin-actions">
+                    <button class="btn btn-primary refresh-rooms-btn">重新整理房間列表</button>
+                    <button class="btn btn-outline return-lobby-btn">返回大廳</button>
+                </div>
+
+                <!-- 房間列表 -->
+                <div class="admin-rooms">
+                    <h3>活躍房間</h3>
+                    <div id="adminRoomList" class="admin-room-list">
+                        <!-- 房間項目將由 JavaScript 動態生成 -->
+                    </div>
+                </div>
+
+                <!-- 系統統計 -->
+                <div class="admin-stats">
+                    <h3>系統統計</h3>
+                    <div class="stats-grid">
+                        <div class="stat-item">
+                            <div class="stat-label">總房間數</div>
+                            <div class="stat-value" id="totalRooms">0</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">活躍玩家</div>
+                            <div class="stat-value" id="activePlayers">0</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">AI 對戰</div>
+                            <div class="stat-value" id="aiGames">0</div>
+                        </div>
+                        <div class="stat-item">
+                            <div class="stat-label">進行中遊戲</div>
+                            <div class="stat-value" id="playingGames">0</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 遊戲視圖 -->
+        <div id="gameView" class="view">
+            <div class="game-container">
+                <!-- 遊戲棋盤 -->
+                <div class="game-board">
+                    <h2 style="text-align: center; margin-bottom: 20px;">西洋棋遊戲</h2>
+                    <div id="chessBoard"></div>
+                    <div id="gameControls"></div>
+                </div>
+
+                <!-- 遊戲資訊側邊欄 -->
+                <div class="game-info">
+                    <h3>遊戲資訊</h3>
+                    
+                    <!-- 棋鐘 -->
+                    <div class="chess-clock">
+                        <div class="clock-label">白方時間</div>
+                        <div class="clock-display" id="whiteClock">10:00</div>
+                    </div>
+                    
+                    <div class="chess-clock">
+                        <div class="clock-label">黑方時間</div>
+                        <div class="clock-display" id="blackClock">10:00</div>
+                    </div>
+
+                    <!-- 玩家資訊 -->
+                    <div style="margin-bottom: 20px;">
+                        <h4>玩家</h4>
+                        <div id="playerInfo">
+                            <p><strong>白方：</strong><span id="whitePlayer">等待加入...</span></p>
+                            <p><strong>黑方：</strong><span id="blackPlayer">等待加入...</span></p>
+                        </div>
+                        
+                        <!-- 等待玩家階段的操作 -->
+                        <div id="waitingActions" style="margin-top: 15px;">
+                            <div class="waiting-options">
+                                <button class="btn btn-success use-ai-btn" style="margin-bottom: 10px;">🤖 使用 AI 對手</button>
+                                <button class="btn btn-primary start-game-btn" style="display: none;">開始遊戲</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 遊戲狀態 -->
+                    <div style="margin-bottom: 20px;">
+                        <h4>遊戲狀態</h4>
+                        <div id="gameStatus">
+                            <p><strong>狀態：</strong><span id="statusText">等待玩家...</span></p>
+                            <p><strong>回合：</strong><span id="turnText">白方</span></p>
+                        </div>
+                    </div>
+
+                    <!-- 聊天區域 -->
+                    <div class="chat-section">
+                        <h4>聊天</h4>
+                        <div id="chatContainer"></div>
+                        <div class="chat-input">
+                            <input type="text" id="chatInput" placeholder="輸入訊息..." maxlength="100">
+                            <button class="btn btn-primary send-chat-btn">發送</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 升變選擇模態框 -->
+    <div id="promotionModal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <h3>選擇升變棋子</h3>
+            <p>小兵已到達底線，請選擇要升變的棋子：</p>
+            <div class="promotion-options">
+                <button class="promotion-btn" data-piece="q">
+                    <span class="piece-symbol">♕</span>
+                    <span>皇后</span>
+                </button>
+                <button class="promotion-btn" data-piece="r">
+                    <span class="piece-symbol">♖</span>
+                    <span>車</span>
+                </button>
+                <button class="promotion-btn" data-piece="b">
+                    <span class="piece-symbol">♗</span>
+                    <span>象</span>
+                </button>
+                <button class="promotion-btn" data-piece="n">
+                    <span class="piece-symbol">♘</span>
+                    <span>馬</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 訊息容器 -->
+    <div id="messageContainer"></div>
+
+    <!-- JavaScript -->
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
