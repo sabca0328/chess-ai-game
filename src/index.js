@@ -358,7 +358,7 @@ async function handleCreateRoom(request, env) {
   }
   
   try {
-    const { name, rules, allowSpectators, allowAI, hostUserId, hostUsername } = await request.json();
+    const { name, rules, hostUserId, hostUsername } = await request.json();
     
     if (!name || !hostUserId || !hostUsername) {
       return new Response(JSON.stringify({ error: '缺少必要資訊' }), {
@@ -396,8 +396,8 @@ async function handleCreateRoom(request, env) {
       host: hostUserId,
       hostUsername,
       rules: rules || 'Standard',
-      allowSpectators: allowSpectators || false,
-      allowAI: allowAI || false,
+      allowSpectators: false,
+      allowAI: false,
       createdAt: new Date().toISOString(),
       players: [{
         id: hostUserId,
@@ -543,12 +543,10 @@ async function handleJoinGame(request, env) {
       // 不自動更改狀態，讓用戶手動開始遊戲
       
     } else if (role === 'spectator') {
-      if (!room.allowSpectators) {
-        return new Response(JSON.stringify({ error: '此房間不允許觀戰' }), {
-          status: 400,
-          headers: { 'Content-Type': 'application/json' },
-        });
-      }
+      return new Response(JSON.stringify({ error: '此房間不允許觀戰' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
       
              room.spectators.push({
          id: userId,
@@ -761,7 +759,7 @@ async function handleAISuggest(request, env) {
   }
   
   try {
-    const { fen, level = 2 } = await request.json();
+    const { fen } = await request.json();
     
     if (!fen) {
       return new Response(JSON.stringify({ error: '缺少棋局資訊' }), {
@@ -770,25 +768,28 @@ async function handleAISuggest(request, env) {
       });
     }
     
-    const response = await env.AI.run('@cf/openai/gpt-oss-120b', {
-      input: `你是一個專業的西洋棋 AI 助手。請分析以下棋局並提供建議。
+    // 使用重試機制調用 AI
+    const response = await retryWithBackoff(async () => {
+      return await env.AI.run('@cf/openai/gpt-oss-120b', {
+        input: `你是一個專業的西洋棋 AI 助手。請分析以下棋局並提供建議。
 
 當前棋局 FEN: ${fen}
-分析等級: ${level}
 
-請根據等級提供建議：
-- 等級 1：快速回應，提供最佳著法
-- 等級 2：2-3個候選著法，簡要說明
-- 等級 3：最佳著法 + 戰術提示 + 位置分析
+請提供初學者等級的建議：
+- 快速回應，提供最佳著法
+- 簡要說明選擇理由
+- 優先考慮安全的移動
 
 重要：你必須嚴格按照以下 JSON 格式回應，不要包含任何其他文字或格式：
 
 {
   "bestMove": "最佳著法 (使用坐標格式，如 e2-e4, b8-c6, f1xc4)",
   "alternativeMoves": ["替代著法1", "替代著法2"],
-  "hint": "戰術提示或建議",
-  "positionSummary": "位置評估總結"
+  "hint": "戰術提示或建議 (請使用繁體中文)",
+  "positionSummary": "位置評估總結 (請使用繁體中文)"
 }
+
+請注意：hint 和 positionSummary 欄位必須使用繁體中文回覆，不要使用英文。
 
 移動格式規則 (坐標格式 - Coordinate Notation)：
 1. 基本移動：e2-e4, d7-d5, h2-h3
@@ -819,10 +820,11 @@ async function handleAISuggest(request, env) {
 4. 回應必須是有效的 JSON 格式
 5. 不要包含任何 markdown 格式或額外文字
 6. 確保所有字符串都用雙引號包圍`,
-      reasoning: {
-        effort: level === 1 ? 'low' : level === 2 ? 'medium' : 'high',
-        summary: 'concise'
-      }
+        reasoning: {
+          effort: 'low',
+          summary: 'concise'
+        }
+      });
     });
     
     // 解析 AI 回應
@@ -901,7 +903,7 @@ async function handleAddAIOpponent(request, env) {
   }
   
   try {
-    const { roomId, aiLevel = 2 } = await request.json();
+    const { roomId } = await request.json();
     
     if (!roomId) {
       return new Response(JSON.stringify({ error: '缺少房間資訊' }), {
@@ -957,17 +959,17 @@ async function handleAddAIOpponent(request, env) {
     
     const aiPlayer = {
       id: 'ai-opponent',
-      username: `AI 等級 ${aiLevel}`,
+      username: 'AI 對手',
       role: 'ai',
       color: aiColor,
       isActive: true,
       lastSeen: new Date().toISOString(),
-      aiLevel: aiLevel
+      aiLevel: 1
     };
     
     room.players.push(aiPlayer);
     room.allowAI = true;
-    room.aiLevel = aiLevel;
+    room.aiLevel = 1;
     
     await env.GAMES.put(roomId, JSON.stringify(room));
     
@@ -1067,6 +1069,63 @@ async function handleStartGame(request, env) {
   }
 }
 
+// 重試機制配置
+const AI_RETRY_CONFIG = {
+  maxRetries: 3,
+  baseDelay: 1000, // 1秒
+  maxDelay: 5000,  // 5秒
+  backoffMultiplier: 2
+};
+
+// 重試函數
+async function retryWithBackoff(fn, config = AI_RETRY_CONFIG) {
+  let lastError;
+  
+  for (let attempt = 0; attempt <= config.maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      lastError = error;
+      
+      // 檢查是否為可重試的錯誤
+      if (!isRetryableError(error) || attempt === config.maxRetries) {
+        throw error;
+      }
+      
+      // 計算延遲時間（指數退避）
+      const delay = Math.min(
+        config.baseDelay * Math.pow(config.backoffMultiplier, attempt),
+        config.maxDelay
+      );
+      
+      console.log(`AI 請求失敗，${delay}ms 後重試 (第 ${attempt + 1}/${config.maxRetries} 次)`);
+      await new Promise(resolve => setTimeout(resolve, delay));
+    }
+  }
+  
+  throw lastError;
+}
+
+// 判斷是否為可重試的錯誤
+function isRetryableError(error) {
+  if (!error) return false;
+  
+  const errorMessage = error.message || error.toString();
+  const retryableErrors = [
+    'Capacity temporarily exceeded',
+    'Service temporarily unavailable',
+    'Internal server error',
+    'Gateway timeout',
+    'Request timeout',
+    'Connection timeout',
+    'Network error'
+  ];
+  
+  return retryableErrors.some(retryableError => 
+    errorMessage.toLowerCase().includes(retryableError.toLowerCase())
+  );
+}
+
 // 處理 AI 對手
 async function handleAIOpponent(request, env) {
   // 只允許 POST 方法
@@ -1078,7 +1137,7 @@ async function handleAIOpponent(request, env) {
   }
   
   try {
-    const { fen, level = 2, playerColor = 'white' } = await request.json();
+    const { fen, playerColor = 'white' } = await request.json();
     
     if (!fen) {
       return new Response(JSON.stringify({ error: '缺少棋局資訊' }), {
@@ -1089,26 +1148,30 @@ async function handleAIOpponent(request, env) {
     
     const aiColor = playerColor === 'white' ? 'black' : 'white';
     
-    const response = await env.AI.run('@cf/openai/gpt-oss-120b', {
-      input: `你是一個專業的西洋棋 AI 對手，等級 ${level}。
+    // 使用重試機制調用 AI
+    const response = await retryWithBackoff(async () => {
+      return await env.AI.run('@cf/openai/gpt-oss-120b', {
+      input: `你是一個專業的西洋棋 AI 對手，等級 1（初學者）。
 
 當前棋局 FEN: ${fen}
 你的顏色: ${aiColor === 'white' ? '白方' : '黑方'}
 對手顏色: ${playerColor === 'white' ? '白方' : '黑方'}
 
-請分析棋局並選擇最佳著法。根據等級提供不同深度的分析：
-- 等級 1：快速選擇最佳著法
-- 等級 2：分析 2-3 個候選著法
-- 等級 3：深度分析 + 戰術評估
+請分析棋局並選擇最佳著法。作為初學者等級的 AI，請：
+- 快速選擇最佳著法
+- 優先考慮安全的移動
+- 避免複雜的戰術組合
 
 重要：你必須嚴格按照以下 JSON 格式回應，不要包含任何其他文字或格式：
 
 {
   "bestMove": "最佳著法 (使用坐標格式，如 e2-e4, b8-c6, f1xc4)",
   "alternativeMoves": ["替代著法1", "替代著法2"],
-  "hint": "選擇理由",
-  "evaluation": "位置評估"
+  "hint": "選擇理由 (請使用繁體中文)",
+  "evaluation": "位置評估 (請使用繁體中文)"
 }
+
+請注意：hint 和 evaluation 欄位必須使用繁體中文回覆，不要使用英文。
 
 移動格式說明 (坐標格式 - Coordinate Notation)：
 - 基本移動：e2-e4, d7-d5, h2-h3 等
@@ -1157,9 +1220,10 @@ SAN 格式示例：
 6. 不要包含任何 markdown 格式或額外文字
 7. 確保所有字符串都用雙引號包圍`,
       reasoning: {
-        effort: level === 1 ? 'low' : level === 2 ? 'medium' : 'high',
+        effort: 'low',
         summary: 'concise'
       }
+      });
     });
     
     // 解析 AI 回應
@@ -2461,16 +2525,6 @@ async function serveFrontend(env) {
                             <option value="Rapid">中速棋</option>
                             <option value="Classical">古典棋</option>
                         </select>
-                    </div>
-                </div>
-                <div class="form-row">
-                    <div class="checkbox-group">
-                        <input type="checkbox" id="allowSpectators">
-                        <label for="allowSpectators">允許觀戰</label>
-                    </div>
-                    <div class="checkbox-group">
-                        <input type="checkbox" id="allowAI">
-                        <label for="allowAI">允許 AI 對手</label>
                     </div>
                 </div>
                 <div style="text-align: center;">

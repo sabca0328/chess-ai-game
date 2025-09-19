@@ -86,8 +86,12 @@ class ChessGameApp {
         this.showAILevelDialog();
       }
       
-      if (e.target.classList.contains('start-game-btn')) {
-        this.startGame();
+      if (e.target.classList.contains('start-resign-btn')) {
+        if (this.currentRoom && this.currentRoom.status === 'playing') {
+          this.resign();
+        } else {
+          this.startGame();
+        }
       }
       
       if (e.target.classList.contains('admin-btn')) {
@@ -121,9 +125,6 @@ class ChessGameApp {
       if (e.target.classList.contains('game-btn')) {
         const action = e.target.dataset.action;
         switch (action) {
-          case 'ai':
-            this.requestAI();
-            break;
           case 'resign':
             this.resign();
             break;
@@ -263,18 +264,12 @@ class ChessGameApp {
         <div class="room-info">
           <p><strong>房主：</strong>${room.hostUsername}</p>
           <p><strong>規則：</strong>${room.rules}</p>
-          <p><strong>觀戰：</strong>${room.allowSpectators ? '允許' : '不允許'}</p>
-          <p><strong>AI：</strong>${room.allowAI ? '允許' : '不允許'}</p>
           <p><strong>玩家：</strong>${room.playerCount}/2</p>
         </div>
         <div class="room-actions">
           ${room.playerCount < 2 ? 
             `<button class="btn btn-primary join-btn" data-room-id="${room.id}" data-role="player">加入遊戲</button>` : 
             '<span class="room-full">房間已滿</span>'
-          }
-          ${room.allowSpectators ? 
-            `<button class="btn btn-secondary join-btn" data-room-id="${room.id}" data-role="spectator">觀戰</button>` : 
-            ''
           }
         </div>
       </div>
@@ -284,8 +279,6 @@ class ChessGameApp {
   async createRoom() {
     const roomName = document.getElementById('roomName').value;
     const rules = document.getElementById('roomRules').value;
-    const allowSpectators = document.getElementById('allowSpectators').checked;
-    const allowAI = document.getElementById('allowAI').checked;
 
     if (!roomName.trim()) {
       this.showError('請輸入房間名稱');
@@ -298,7 +291,7 @@ class ChessGameApp {
     }
 
     try {
-      console.log('Creating room:', { roomName, rules, allowSpectators, allowAI, currentUser: this.currentUser });
+      console.log('Creating room:', { roomName, rules, currentUser: this.currentUser });
       
       const response = await fetch('/api/lobby/create-room', {
         method: 'POST',
@@ -306,8 +299,8 @@ class ChessGameApp {
         body: JSON.stringify({
           name: roomName,
           rules,
-          allowSpectators,
-          allowAI,
+          allowSpectators: false,
+          allowAI: false,
           hostUserId: this.currentUser.id,
           hostUsername: this.currentUser.username
         })
@@ -374,46 +367,13 @@ class ChessGameApp {
   }
 
   showAILevelDialog() {
-    const modal = document.createElement('div');
-    modal.className = 'modal';
-    modal.innerHTML = `
-      <div class="modal-content">
-        <h3>🤖 選擇 AI 對手等級</h3>
-        <div class="ai-level-selection">
-          <div class="level-option" data-level="1">
-            <h4>等級 1 - 初學者</h4>
-            <p>快速回應，適合初學者練習</p>
-          </div>
-          <div class="level-option" data-level="2">
-            <h4>等級 2 - 標準</h4>
-            <p>平衡的難度，適合一般玩家</p>
-          </div>
-          <div class="level-option" data-level="3">
-            <h4>等級 3 - 專家</h4>
-            <p>深度分析，適合進階玩家</p>
-          </div>
-        </div>
-        <div class="modal-actions">
-          <button class="btn btn-secondary modal-close-btn">取消</button>
-        </div>
-      </div>
-    `;
-    
-    document.body.appendChild(modal);
-    
-    // 添加等級選擇事件
-    modal.querySelectorAll('.level-option').forEach(option => {
-      option.addEventListener('click', () => {
-        const level = parseInt(option.dataset.level);
-        modal.remove();
-        this.addAIOpponent(level);
-      });
-    });
+    // 直接添加初階 AI 對手，不需要選擇等級
+    this.addAIOpponent(1);
   }
 
-  async addAIOpponent(aiLevel) {
+  async addAIOpponent() {
     try {
-      console.log('Adding AI opponent:', { roomId: this.currentRoom?.id, aiLevel, currentRoom: this.currentRoom });
+      console.log('Adding AI opponent:', { roomId: this.currentRoom?.id, currentRoom: this.currentRoom });
       
       if (!this.currentRoom || !this.currentRoom.id) {
         this.showError('房間資訊不完整，請重新加入房間');
@@ -424,8 +384,7 @@ class ChessGameApp {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          roomId: this.currentRoom.id,
-          aiLevel: aiLevel
+          roomId: this.currentRoom.id
         })
       });
 
@@ -436,7 +395,7 @@ class ChessGameApp {
         this.currentRoom = data.room;
         this.updatePlayerInfo();
         this.updateGameStatus();
-        this.showMessage(`已添加 AI 等級 ${aiLevel} 對手！`);
+        this.showMessage('已添加 AI 對手！');
       } else {
         this.showError(data.error || '無法添加 AI 對手');
       }
@@ -479,14 +438,34 @@ class ChessGameApp {
     this.connectToGame();
     this.updatePlayerInfo();
     this.updateGameStatus();
+    this.clearPositionAnalysis();
   }
 
   setupGameBoard() {
     const board = document.getElementById('chessBoard');
     if (!board) return;
 
-    // 建立棋盤
+    // 建立棋盤容器
     board.innerHTML = '';
+    
+    // 創建棋盤網格容器
+    const boardGrid = document.createElement('div');
+    boardGrid.className = 'board-grid';
+    
+    // 添加左側數字標記（1-8）
+    const leftNumbers = document.createElement('div');
+    leftNumbers.className = 'board-coords left-numbers';
+    for (let rank = 8; rank >= 1; rank--) {
+      const numberDiv = document.createElement('div');
+      numberDiv.className = 'coord-number';
+      numberDiv.textContent = rank;
+      leftNumbers.appendChild(numberDiv);
+    }
+    boardGrid.appendChild(leftNumbers);
+    
+    // 創建棋盤主體
+    const boardSquares = document.createElement('div');
+    boardSquares.className = 'board-squares';
     
     for (let rank = 8; rank >= 1; rank--) {
       for (let file = 0; file < 8; file++) {
@@ -505,9 +484,23 @@ class ChessGameApp {
           square.dataset.piece = piece.type + piece.color;
         }
         
-        board.appendChild(square);
+        boardSquares.appendChild(square);
       }
     }
+    boardGrid.appendChild(boardSquares);
+    
+    // 添加頂部字母標記（A-H，大寫）
+    const topLetters = document.createElement('div');
+    topLetters.className = 'board-coords top-letters';
+    for (let file = 0; file < 8; file++) {
+      const letterDiv = document.createElement('div');
+      letterDiv.className = 'coord-letter';
+      letterDiv.textContent = String.fromCharCode(65 + file); // A-H
+      topLetters.appendChild(letterDiv);
+    }
+    boardGrid.appendChild(topLetters);
+    
+    board.appendChild(boardGrid);
   }
 
   getSquareColor(rank, file) {
@@ -529,15 +522,6 @@ class ChessGameApp {
 
     controls.innerHTML = `
       <div class="game-controls-row">
-        <button class="btn btn-primary game-btn" data-action="ai">🤖 AI 建議</button>
-        <select id="aiLevel" class="form-control" style="width: auto; display: inline-block;">
-          <option value="1">AI 等級 1 (快速)</option>
-          <option value="2" selected>AI 等級 2 (標準)</option>
-          <option value="3">AI 等級 3 (深度)</option>
-        </select>
-      </div>
-      <div class="game-controls-row">
-      <button class="btn btn-danger game-btn" data-action="resign">認輸</button>
       <button class="btn btn-warning game-btn" data-action="draw">提議和棋</button>
       <button class="btn btn-secondary game-btn" data-action="rematch">重賽</button>
       <button class="btn btn-outline game-btn" data-action="leave">離開遊戲</button>
@@ -934,7 +918,7 @@ class ChessGameApp {
     const statusText = document.getElementById('statusText');
     const turnText = document.getElementById('turnText');
     const useAiBtn = document.querySelector('.use-ai-btn');
-    const startGameBtn = document.querySelector('.start-game-btn');
+    const startResignBtn = document.querySelector('.start-resign-btn');
     
     if (statusText) {
       statusText.textContent = this.currentRoom.status || '等待玩家...';
@@ -954,19 +938,29 @@ class ChessGameApp {
     this.updateClock();
     
     // 控制按鈕顯示
-    if (useAiBtn && startGameBtn) {
+    if (useAiBtn && startResignBtn) {
       const hasTwoPlayers = this.currentRoom.players && this.currentRoom.players.length >= 2;
       const isWaiting = this.currentRoom.status === 'waiting';
+      const isPlaying = this.currentRoom.status === 'playing';
       
       if (isWaiting && !hasTwoPlayers) {
         useAiBtn.style.display = 'block';
-        startGameBtn.style.display = 'none';
-      } else if (hasTwoPlayers) {
+        startResignBtn.style.display = 'none';
+      } else if (hasTwoPlayers || isPlaying) {
         useAiBtn.style.display = 'none';
-        startGameBtn.style.display = 'block';
+        startResignBtn.style.display = 'block';
+        
+        // 更新按鈕文字和樣式
+        if (isPlaying) {
+          startResignBtn.textContent = '認輸';
+          startResignBtn.className = 'btn btn-danger start-resign-btn';
+        } else {
+          startResignBtn.textContent = '開始遊戲';
+          startResignBtn.className = 'btn btn-primary start-resign-btn';
+        }
       } else {
         useAiBtn.style.display = 'none';
-        startGameBtn.style.display = 'none';
+        startResignBtn.style.display = 'none';
       }
     }
   }
@@ -1122,7 +1116,7 @@ class ChessGameApp {
           this.updateGameStatus();
           
           // 如果是 AI 對手且遊戲已開始，觸發 AI 移動
-          if (this.currentRoom.status === 'playing' && this.currentRoom.allowAI && this.chess && typeof this.chess.turn === 'function' && this.chess.turn() !== this.getCurrentPlayerColor()) {
+          if (this.currentRoom.status === 'playing' && this.chess && typeof this.chess.turn === 'function' && this.chess.turn() !== this.getCurrentPlayerColor()) {
             this.makeAIMove();
           }
           
@@ -1263,10 +1257,13 @@ class ChessGameApp {
                 // 後端接受移動，更新棋盤
           this.updateBoard();
           this.checkGameStatus();
-                this.updateGameStatus();
-                this.showMessage(`AI 移動: ${aiMove}`);
-                
-                // 顯示 AI 的思考過程
+                  this.updateGameStatus();
+                  this.showMessage(`AI 移動: ${aiMove}`);
+                  
+                  // 更新局勢分析框
+                  this.updatePositionAnalysis(aiMoveData);
+                  
+                  // 顯示 AI 的思考過程
                 if (aiMoveData.hint) {
                   setTimeout(() => {
                     this.showMessage(`AI 提示: ${aiMoveData.hint}`);
@@ -1297,70 +1294,32 @@ class ChessGameApp {
     }
   }
 
-  async requestAI() {
-    try {
-      // 檢查 chess 對象是否已初始化
-      if (!this.chess || typeof this.chess.fen !== 'function') {
-        this.showError('棋局尚未初始化');
-        return;
-      }
-      
-      const aiLevel = document.getElementById('aiLevel')?.value || 2;
-      
-      this.showMessage('AI 正在分析棋局...');
-      
-      const response = await fetch('/api/game/ai-suggest', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          fen: this.chess.fen(),
-          level: parseInt(aiLevel)
-        })
-      });
-
-      const data = await response.json();
-      
-      if (data.success && data.suggestion) {
-        this.showAISuggestion(data.suggestion);
-      } else {
-        this.showError(data.error || '無法獲取 AI 建議');
-      }
-    } catch (error) {
-      console.error('AI suggestion error:', error);
-      this.showError('無法獲取 AI 建議');
+  // 更新局勢分析框
+  updatePositionAnalysis(aiMoveData) {
+    const currentHint = document.getElementById('currentHint');
+    const positionEvaluation = document.getElementById('positionEvaluation');
+    
+    if (currentHint) {
+      currentHint.textContent = aiMoveData.hint || '等待 AI 思考...';
+    }
+    
+    if (positionEvaluation) {
+      positionEvaluation.textContent = aiMoveData.evaluation || '-';
     }
   }
 
-  showAISuggestion(suggestion) {
-    const modal = document.createElement('div');
-    modal.className = 'modal';
-    modal.innerHTML = `
-      <div class="modal-content">
-        <h3>🤖 AI 建議</h3>
-        <div class="ai-suggestion">
-          <div class="suggestion-item">
-            <strong>最佳著法：</strong>
-            <span class="move-highlight">${suggestion.bestMove || '無'}</span>
-          </div>
-          <div class="suggestion-item">
-            <strong>替代著法：</strong>
-            <span>${suggestion.alternativeMoves ? suggestion.alternativeMoves.join(', ') : '無'}</span>
-          </div>
-          <div class="suggestion-item">
-            <strong>戰術提示：</strong>
-            <span>${suggestion.hint || '無'}</span>
-          </div>
-          <div class="suggestion-item">
-            <strong>位置評估：</strong>
-            <span>${suggestion.positionSummary || '無'}</span>
-          </div>
-        </div>
-        <div class="modal-actions">
-        <button class="btn btn-primary modal-close-btn">關閉</button>
-        </div>
-      </div>
-    `;
-    document.body.appendChild(modal);
+  // 清空局勢分析框
+  clearPositionAnalysis() {
+    const currentHint = document.getElementById('currentHint');
+    const positionEvaluation = document.getElementById('positionEvaluation');
+    
+    if (currentHint) {
+      currentHint.textContent = '等待 AI 思考...';
+    }
+    
+    if (positionEvaluation) {
+      positionEvaluation.textContent = '-';
+    }
   }
 
   async resign() {

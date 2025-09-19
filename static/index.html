@@ -105,16 +105,6 @@
                         </select>
                     </div>
                 </div>
-                <div class="form-row">
-                    <div class="checkbox-group">
-                        <input type="checkbox" id="allowSpectators">
-                        <label for="allowSpectators">允許觀戰</label>
-                    </div>
-                    <div class="checkbox-group">
-                        <input type="checkbox" id="allowAI">
-                        <label for="allowAI">允許 AI 對手</label>
-                    </div>
-                </div>
                 <div style="text-align: center;">
                     <button class="btn btn-primary create-room-submit-btn">建立房間</button>
                     <button class="btn btn-secondary hide-create-room-btn">取消</button>
@@ -176,51 +166,74 @@
         <!-- 遊戲視圖 -->
         <div id="gameView" class="view">
             <div class="game-container">
-                <!-- 遊戲棋盤 -->
-                <div class="game-board">
-                    <h2 style="text-align: center; margin-bottom: 20px;">西洋棋遊戲</h2>
-                    <div id="chessBoard"></div>
-                    <div id="gameControls"></div>
-                </div>
-
-                <!-- 遊戲資訊側邊欄 -->
-                <div class="game-info">
-                    <h3>遊戲資訊</h3>
-                    
-                    <!-- 棋鐘 -->
-                    <div class="chess-clock">
-                        <div class="clock-label">白方時間</div>
-                        <div class="clock-display" id="whiteClock">10:00</div>
-                    </div>
-                    
-                    <div class="chess-clock">
-                        <div class="clock-label">黑方時間</div>
-                        <div class="clock-display" id="blackClock">10:00</div>
+                <!-- 上方區域：棋盤和控制面板 -->
+                <div class="game-main">
+                    <!-- 棋盤區域 -->
+                    <div class="game-board">
+                        <h2 style="text-align: center; margin-bottom: 15px;">西洋棋遊戲</h2>
+                        <div id="chessBoard"></div>
                     </div>
 
-                    <!-- 玩家資訊 -->
-                    <div style="margin-bottom: 20px;">
-                        <h4>玩家</h4>
-                        <div id="playerInfo">
-                            <p><strong>白方：</strong><span id="whitePlayer">等待加入...</span></p>
-                            <p><strong>黑方：</strong><span id="blackPlayer">等待加入...</span></p>
+                    <!-- 遊戲控制選單 -->
+                    <div class="game-controls">
+                        <h3>遊戲控制</h3>
+                        
+                        <!-- 棋鐘 -->
+                        <div class="chess-clock">
+                            <div class="clock-label">白方時間</div>
+                            <div class="clock-display" id="whiteClock">10:00</div>
                         </div>
                         
-                        <!-- 等待玩家階段的操作 -->
-                        <div id="waitingActions" style="margin-top: 15px;">
-                            <div class="waiting-options">
-                                <button class="btn btn-success use-ai-btn" style="margin-bottom: 10px;">🤖 使用 AI 對手</button>
-                                <button class="btn btn-primary start-game-btn" style="display: none;">開始遊戲</button>
+                        <div class="chess-clock">
+                            <div class="clock-label">黑方時間</div>
+                            <div class="clock-display" id="blackClock">10:00</div>
+                        </div>
+
+                        <!-- 玩家資訊 -->
+                        <div style="margin-bottom: 20px;">
+                            <h4>玩家</h4>
+                            <div id="playerInfo">
+                                <p><strong>白方：</strong><span id="whitePlayer">等待加入...</span></p>
+                                <p><strong>黑方：</strong><span id="blackPlayer">等待加入...</span></p>
+                            </div>
+                            
+                            <!-- 等待玩家階段的操作 -->
+                            <div id="waitingActions" style="margin-top: 15px;">
+                                <div class="waiting-options">
+                                    <button class="btn btn-success use-ai-btn" style="margin-bottom: 10px;">🤖 使用 AI 對手</button>
+                                    <button class="btn btn-primary start-resign-btn" style="display: none;">開始遊戲</button>
+                                </div>
                             </div>
                         </div>
-                    </div>
 
-                    <!-- 遊戲狀態 -->
-                    <div style="margin-bottom: 20px;">
-                        <h4>遊戲狀態</h4>
-                        <div id="gameStatus">
-                            <p><strong>狀態：</strong><span id="statusText">等待玩家...</span></p>
-                            <p><strong>回合：</strong><span id="turnText">白方</span></p>
+                        <!-- 遊戲狀態 -->
+                        <div style="margin-bottom: 20px;">
+                            <h4>遊戲狀態</h4>
+                            <div id="gameStatus">
+                                <p><strong>狀態：</strong><span id="statusText">等待玩家...</span></p>
+                                <p><strong>回合：</strong><span id="turnText">白方</span></p>
+                            </div>
+                        </div>
+
+                        <!-- 遊戲控制按鈕 -->
+                        <div id="gameControls"></div>
+                    </div>
+                </div>
+
+                <!-- 下方區域：AI 分析和聊天 -->
+                <div class="game-bottom">
+                    <!-- 局勢分析 -->
+                    <div class="analysis-section">
+                        <h4>局勢分析</h4>
+                        <div class="position-analysis">
+                            <div class="analysis-item">
+                                <strong>AI 正在想：</strong>
+                                <span id="currentHint">等待 AI 思考...</span>
+                            </div>
+                            <div class="analysis-item">
+                                <strong>局勢評估：</strong>
+                                <span id="positionEvaluation">-</span>
+                            </div>
                         </div>
                     </div>
 
