@@ -171,43 +171,39 @@
                     <!-- 棋盤區域 -->
                     <div class="game-board">
                         <h2 style="text-align: center; margin-bottom: 15px;">西洋棋遊戲</h2>
-                        <div id="chessBoard"></div>
+                        <div class="board-container">
+                            <!-- 左側棋鐘 -->
+                            <div class="side-clock left-clock">
+                                <div class="clock-display" id="whiteClock">10:00</div>
+                                <div class="clock-label">白方時間</div>
+                            </div>
+                            
+                            <!-- 棋盤 -->
+                            <div id="chessBoard"></div>
+                            
+                            <!-- 右側棋鐘 -->
+                            <div class="side-clock right-clock">
+                                <div class="clock-display" id="blackClock">10:00</div>
+                                <div class="clock-label">黑方時間</div>
+                            </div>
+                        </div>
                     </div>
 
                     <!-- 遊戲控制選單 -->
                     <div class="game-controls">
                         <h3>遊戲控制</h3>
-                        
-                        <!-- 棋鐘 -->
-                        <div class="chess-clock">
-                            <div class="clock-label">白方時間</div>
-                            <div class="clock-display" id="whiteClock">10:00</div>
-                        </div>
-                        
-                        <div class="chess-clock">
-                            <div class="clock-label">黑方時間</div>
-                            <div class="clock-display" id="blackClock">10:00</div>
-                        </div>
 
                         <!-- 玩家資訊 -->
-                        <div style="margin-bottom: 20px;">
+                        <div style="margin-bottom: 15px;">
                             <h4>玩家</h4>
                             <div id="playerInfo">
                                 <p><strong>白方：</strong><span id="whitePlayer">等待加入...</span></p>
                                 <p><strong>黑方：</strong><span id="blackPlayer">等待加入...</span></p>
                             </div>
-                            
-                            <!-- 等待玩家階段的操作 -->
-                            <div id="waitingActions" style="margin-top: 15px;">
-                                <div class="waiting-options">
-                                    <button class="btn btn-success use-ai-btn" style="margin-bottom: 10px;">🤖 使用 AI 對手</button>
-                                    <button class="btn btn-primary start-resign-btn" style="display: none;">開始遊戲</button>
-                                </div>
-                            </div>
                         </div>
 
                         <!-- 遊戲狀態 -->
-                        <div style="margin-bottom: 20px;">
+                        <div style="margin-bottom: 15px;">
                             <h4>遊戲狀態</h4>
                             <div id="gameStatus">
                                 <p><strong>狀態：</strong><span id="statusText">等待玩家...</span></p>
@@ -215,8 +211,19 @@
                             </div>
                         </div>
 
-                        <!-- 遊戲控制按鈕 -->
-                        <div id="gameControls"></div>
+                        <!-- 所有遊戲控制按鈕 -->
+                        <div class="all-game-buttons">
+                            <!-- 等待玩家階段的操作 -->
+                            <div id="waitingActions">
+                                <div class="waiting-options">
+                                    <button class="btn btn-success use-ai-btn">🤖 使用 AI 對手</button>
+                                    <button class="btn btn-primary start-resign-btn" style="display: none;">開始遊戲</button>
+                                </div>
+                            </div>
+                            
+                            <!-- 遊戲控制按鈕 -->
+                            <div id="gameControls"></div>
+                        </div>
                     </div>
                 </div>
 

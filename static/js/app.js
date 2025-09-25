@@ -1405,7 +1405,9 @@ class ChessGameApp {
     }
     
     if (positionEvaluation) {
-      positionEvaluation.textContent = aiMoveData.evaluation || '-';
+      // 支援兩種字段名稱：evaluation 和 positionSummary
+      const evaluationText = aiMoveData.evaluation || aiMoveData.positionSummary || '等待評估...';
+      positionEvaluation.textContent = evaluationText;
     }
   }
 
@@ -1419,7 +1421,7 @@ class ChessGameApp {
     }
     
     if (positionEvaluation) {
-      positionEvaluation.textContent = '-';
+      positionEvaluation.textContent = '等待評估...';
     }
   }
 

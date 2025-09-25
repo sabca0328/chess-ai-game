@@ -21,15 +21,15 @@ body {
 /* 按鈕樣式 */
 .btn {
   display: inline-block;
-  padding: 10px 20px;
+  padding: 6px 12px;
   border: none;
-  border-radius: 5px;
+  border-radius: 4px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 500;
   text-decoration: none;
   transition: all 0.3s ease;
-  margin: 5px;
+  margin: 1px;
 }
 
 .btn-primary {
@@ -302,7 +302,7 @@ body {
   display: none;
   height: 100vh;
   overflow: hidden;
-  padding: 8px;
+  padding: 4px;
   box-sizing: border-box;
 }
 
@@ -311,7 +311,7 @@ body {
   display: flex;
   flex-direction: column;
   height: 100%;
-  gap: 8px;
+  gap: 4px;
   max-width: 1400px;
   margin: 0 auto;
 }
@@ -319,21 +319,20 @@ body {
 /* 上方區域 - 棋盤和控制面板 */
 .game-main {
   display: flex;
-  flex: 1;
-  gap: 12px;
+  height: 65vh;
+  gap: 6px;
   min-height: 0;
+  flex-shrink: 0;
 }
 
 /* 棋盤區域 */
 .game-board {
   background: white;
-  border-radius: 8px;
-  padding: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border-radius: 6px;
+  padding: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
   flex: 1;
   min-width: 0;
 }
@@ -341,46 +340,121 @@ body {
 /* 控制面板 */
 .game-controls {
   background: white;
-  border-radius: 8px;
-  padding: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  width: 280px;
+  border-radius: 6px;
+  padding: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  width: 260px;
   flex-shrink: 0;
   overflow-y: auto;
+  max-height: 100%;
+}
+
+/* 遊戲控制面板標題優化 */
+.game-controls h3 {
+  margin-bottom: 8px;
+  font-size: 1.1rem;
+}
+
+.game-controls h4 {
+  margin-bottom: 4px;
+  font-size: 0.85rem;
+}
+
+/* 所有遊戲按鈕容器 */
+.all-game-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.waiting-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
 /* 下方區域 - AI分析和聊天 */
 .game-bottom {
   display: flex;
-  gap: 12px;
-  height: 120px;
+  gap: 6px;
+  flex: 1;
   flex-shrink: 0;
+  min-height: 0;
 }
 
 .analysis-section {
   background: white;
-  border-radius: 8px;
-  padding: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border-radius: 6px;
+  padding: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   flex: 1;
   overflow-y: auto;
 }
 
 .chat-section {
   background: white;
-  border-radius: 8px;
-  padding: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  border-radius: 6px;
+  padding: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
   flex: 1;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* 棋盤容器樣式 */
+.board-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 15px;
+  width: 100%;
+  flex: 1;
+}
+
+/* 側邊棋鐘樣式 */
+.side-clock {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 80px;
+  padding: 10px;
+  background: #f8f9fa;
+  border: 2px solid #dee2e6;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.left-clock {
+  order: 1;
+}
+
+.right-clock {
+  order: 3;
+}
+
+.side-clock .clock-display {
+  font-size: 1.8em;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.side-clock .clock-label {
+  font-size: 0.8em;
+  color: #666;
+  text-align: center;
+  writing-mode: horizontal-tb;
 }
 
 /* 棋盤樣式 */
 #chessBoard {
   width: 100%;
   max-width: 350px;
-  margin: 0 auto;
+  margin: 0;
   flex-shrink: 0;
+  order: 2;
 }
 
 .square {
@@ -508,21 +582,19 @@ body {
 }
 
 /* 聊天區域 */
-.chat-section {
-  margin-top: 20px;
-}
-
 .chat-section h4 {
-  margin-bottom: 15px;
+  margin-bottom: 8px;
   color: #333;
+  font-size: 0.9rem;
 }
 
 #chatContainer {
-  height: 60px;
+  flex: 1;
+  min-height: 120px;
   overflow-y: auto;
   border: 1px solid #ddd;
-  border-radius: 5px;
-  padding: 4px;
+  border-radius: 4px;
+  padding: 3px;
   background: #f8f9fa;
 }
 
@@ -626,92 +698,45 @@ body {
 
 /* 大螢幕優化 (桌面) */
 @media (min-width: 1200px) and (min-height: 900px) {
-  .game-bottom {
-    height: 140px;
+  .game-main {
+    height: 60vh;
   }
   
-  #chatContainer {
-    height: 80px;
+  #chessBoard {
+    max-width: 400px;
   }
   
   .game-board {
-    padding: 20px;
+    padding: 12px;
   }
   
   .game-controls {
-    padding: 20px;
-    width: 320px;
+    padding: 12px;
+    width: 280px;
+  }
+  
+  #chessBoard {
+    max-width: 400px;
+  }
+  
+  .board-grid {
+    max-width: 400px;
   }
 }
 
 /* 筆電螢幕優化 */
 @media (max-height: 800px) and (min-width: 1024px) {
-  .game-bottom {
-    height: 100px;
-  }
-  
-  #chatContainer {
-    height: 50px;
-  }
-  
-  .analysis-section,
-  .chat-section {
-    padding: 8px;
-  }
-  
-  .analysis-section h4,
-  .chat-section h4 {
-    margin-bottom: 6px;
-    font-size: 14px;
-  }
-}
-
-/* 平板螢幕 */
-@media (max-width: 1024px) and (min-width: 769px) {
   .game-main {
-    flex-direction: column;
-    gap: 8px;
+    height: 70vh;
   }
   
-  .game-controls {
-    width: 100%;
-    height: 120px;
+  .board-container {
+    gap: 10px;
   }
   
-  .game-bottom {
-    height: 100px;
-  }
-  
-  #chessBoard {
-    max-width: 300px;
-  }
-}
-
-/* 響應式設計 */
-@media (max-width: 768px) {
-  #gameView {
-    height: 100vh;
-    padding: 4px;
-  }
-  
-  .game-container {
-    gap: 6px;
-  }
-  
-  .game-main {
-    flex-direction: column;
-    gap: 6px;
-  }
-  
-  .game-controls {
-    width: 100%;
-    height: 100px;
+  .side-clock {
+    min-width: 70px;
     padding: 8px;
-  }
-  
-  .game-bottom {
-    height: 80px;
-    gap: 6px;
   }
   
   .analysis-section,
@@ -719,25 +744,104 @@ body {
     padding: 6px;
   }
   
+  .analysis-section h4,
+  .chat-section h4 {
+    margin-bottom: 4px;
+    font-size: 12px;
+  }
+}
+
+/* 平板螢幕 */
+@media (max-width: 1024px) and (min-width: 769px) {
+  .game-main {
+    flex-direction: column;
+    gap: 6px;
+    height: 70vh;
+  }
+  
+  .game-controls {
+    width: 100%;
+    height: 90px;
+  }
+  
+  .board-container {
+    gap: 8px;
+  }
+  
+  .side-clock {
+    min-width: 60px;
+    padding: 6px;
+  }
+  
   #chessBoard {
     max-width: 280px;
   }
+}
+
+/* 響應式設計 */
+@media (max-width: 768px) {
+  #gameView {
+    height: 100vh;
+    padding: 3px;
+  }
+  
+  .game-container {
+    gap: 4px;
+  }
+  
+  .game-main {
+    flex-direction: column;
+    gap: 4px;
+    height: 70vh;
+  }
+  
+  .game-controls {
+    width: 100%;
+    height: 80px;
+    padding: 6px;
+  }
+  
+  .board-container {
+    gap: 6px;
+  }
+  
+  .side-clock {
+    min-width: 50px;
+    padding: 4px;
+  }
+  
+  .side-clock .clock-display {
+    font-size: 1.4em;
+  }
+  
+  .side-clock .clock-label {
+    font-size: 0.7em;
+  }
+  
+  .analysis-section,
+  .chat-section {
+    padding: 4px;
+  }
+  
+  #chessBoard {
+    max-width: 260px;
+  }
   
   .board-grid {
-    max-width: 280px;
-    grid-template-columns: 18px 1fr;
-    grid-template-rows: 18px 1fr;
+    max-width: 260px;
+    grid-template-columns: 16px 1fr;
+    grid-template-rows: 16px 1fr;
   }
   
   .coord-number, .coord-letter {
-    min-height: 18px;
-    min-width: 18px;
-    font-size: 10px;
+    min-height: 16px;
+    min-width: 16px;
+    font-size: 9px;
   }
   
   #chatContainer {
-    height: 40px;
-    padding: 3px;
+    height: 35px;
+    padding: 2px;
   }
   
   .chat-message {
@@ -905,25 +1009,25 @@ body {
 /* 棋鐘樣式 */
 .chess-clock {
   background: #f8f9fa;
-  border: 2px solid #dee2e6;
-  border-radius: 8px;
-  padding: 10px;
-  margin-bottom: 10px;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  padding: 6px;
+  margin-bottom: 6px;
   text-align: center;
 }
 
 .clock-display {
-  font-size: 1.5em;
+  font-size: 1.2em;
   font-weight: bold;
   color: #333;
-  margin-bottom: 10px;
+  margin-bottom: 4px;
 }
 
 .clock-label {
-  font-size: 0.9em;
+  font-size: 0.7em;
   color: #666;
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 0.5px;
 }
 
 .clock-active {
@@ -1222,13 +1326,15 @@ body {
   background: #f8f9fa;
   border: 1px solid #dee2e6;
   border-radius: 6px;
-  padding: 8px;
-  margin-top: 6px;
+  padding: 6px;
+  margin-top: 4px;
+  height: calc(100% - 20px);
+  overflow-y: auto;
 }
 
 .analysis-item {
-  margin-bottom: 6px;
-  padding: 4px 0;
+  margin-bottom: 4px;
+  padding: 3px 0;
   border-bottom: 1px solid #e9ecef;
 }
 
@@ -1239,15 +1345,15 @@ body {
 
 .analysis-item strong {
   color: #495057;
-  font-size: 12px;
+  font-size: 13px;
   display: block;
-  margin-bottom: 2px;
+  margin-bottom: 3px;
 }
 
 .analysis-item span {
   color: #6c757d;
-  font-size: 11px;
-  line-height: 1.3;
+  font-size: 12px;
+  line-height: 1.4;
   display: block;
   word-wrap: break-word;
 }
