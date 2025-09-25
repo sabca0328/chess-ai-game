@@ -774,6 +774,7 @@ async function handleAISuggest(request, env) {
         input: `你是一個專業的西洋棋 AI 助手。請分析以下棋局並提供建議。
 
 當前棋局 FEN: ${fen}
+當前輪到: ${fen.split(' ')[1] === 'w' ? '白方' : '黑方'}
 
 請提供初學者等級的建議：
 - 快速回應，提供最佳著法
@@ -1156,6 +1157,9 @@ async function handleAIOpponent(request, env) {
 當前棋局 FEN: ${fen}
 你的顏色: ${aiColor === 'white' ? '白方' : '黑方'}
 對手顏色: ${playerColor === 'white' ? '白方' : '黑方'}
+當前輪到: ${aiColor === 'white' ? '白方' : '黑方'} (你)
+
+重要提醒：你只能移動你顏色的棋子！${aiColor === 'white' ? '白方' : '黑方'}的棋子。
 
 請分析棋局並選擇最佳著法。作為初學者等級的 AI，請：
 - 快速選擇最佳著法

@@ -1140,6 +1140,98 @@ class ChessGameApp {
     }
   }
 
+  // AI 移動重試配置
+  AI_MOVE_RETRY_CONFIG = {
+    maxRetries: 2,
+    baseDelay: 1000,
+    maxDelay: 3000,
+    backoffMultiplier: 2
+  };
+
+  // AI 移動重試函數
+  async retryAIMoveWithBackoff(fn, config = this.AI_MOVE_RETRY_CONFIG) {
+    let lastError;
+    
+    for (let attempt = 0; attempt <= config.maxRetries; attempt++) {
+      try {
+        return await fn();
+      } catch (error) {
+        lastError = error;
+        
+        if (attempt === config.maxRetries) {
+          throw error;
+        }
+        
+        // 計算延遲時間（指數退避）
+        const delay = Math.min(
+          config.baseDelay * Math.pow(config.backoffMultiplier, attempt),
+          config.maxDelay
+        );
+        
+        console.log(`AI 移動失敗，${delay}ms 後重試 (第 ${attempt + 1}/${config.maxRetries} 次)`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+    
+    throw lastError;
+  }
+
+  // 執行單次 AI 移動
+  async executeAIMove(aiMoveData) {
+    const aiMove = aiMoveData.bestMove;
+    console.log('AI move to execute:', aiMove);
+    console.log('Current FEN:', this.chess.fen());
+    console.log('Current turn:', this.chess.turn());
+    
+    // 檢查遊戲是否已結束
+    if (this.chess.isGameOver()) {
+      throw new Error('遊戲已結束，無法執行移動');
+    }
+    
+    // 嘗試執行移動
+    const moveResult = this.chess.move(aiMove);
+    console.log('Move result:', moveResult);
+    
+    if (!moveResult) {
+      // 移動無效，獲取所有可用移動來調試
+      const availableMoves = this.chess.moves();
+      console.error('Invalid AI move:', aiMove);
+      console.error('Available moves:', availableMoves);
+      throw new Error(`AI 移動無效: ${aiMove}`);
+    }
+    
+    // 發送移動到後端
+    const serverResponse = await this.sendAIMoveToServer({
+      from: moveResult.from,
+      to: moveResult.to,
+      promotion: moveResult.promotion
+    });
+    
+    if (!serverResponse || !serverResponse.success) {
+      // 後端拒絕移動，恢復棋盤狀態
+      this.restoreBoardState();
+      throw new Error('AI 移動被後端拒絕');
+    }
+    
+    // 移動成功，更新棋盤和狀態
+    this.updateBoard();
+    this.checkGameStatus();
+    this.updateGameStatus();
+    this.showMessage(`AI 移動: ${aiMove}`);
+    
+    // 更新局勢分析框
+    this.updatePositionAnalysis(aiMoveData);
+    
+    // 顯示 AI 的思考過程
+    if (aiMoveData.hint) {
+      setTimeout(() => {
+        this.showMessage(`AI 提示: ${aiMoveData.hint}`);
+      }, 1000);
+    }
+    
+    return true;
+  }
+
   async makeAIMove() {
     // 只有在遊戲進行中才執行 AI 移動
     if (this.currentRoom.status !== 'playing') {
@@ -1214,75 +1306,84 @@ class ChessGameApp {
         }
         
         if (aiMoveData && aiMoveData.bestMove) {
-          const aiMove = aiMoveData.bestMove;
-          console.log('AI move to execute:', aiMove);
-          console.log('Current FEN:', this.chess.fen());
-          console.log('Current turn:', this.chess.turn());
-          
+          // 使用重試機制執行 AI 移動
           try {
-            // 檢查遊戲是否已結束
-            if (this.chess.isGameOver()) {
-              console.error('Game is over, cannot make moves');
-              this.showError('遊戲已結束');
-              return;
-            }
+            await this.retryAIMoveWithBackoff(async () => {
+              return await this.executeAIMove(aiMoveData);
+            });
+          } catch (error) {
+            console.error('AI 移動最終失敗:', error);
             
-            console.log('AI move to execute:', aiMove);
-            console.log('Current FEN:', this.chess.fen());
-            console.log('Current turn:', this.chess.turn());
-            
-            // 直接嘗試執行移動，讓 chess.js 自己判斷是否有效
-            // 如果移動無效，chess.js 會返回 null
-            const moveResult = this.chess.move(aiMove);
-            console.log('Move result:', moveResult);
-            
-            if (!moveResult) {
-              // 移動無效，獲取所有可用移動來調試
-              const availableMoves = this.chess.moves();
-              console.error('Invalid AI move:', aiMove);
-              console.error('Available moves:', availableMoves);
-              this.showError('AI 移動無效: ' + aiMove);
-              return;
-            }
-            
-            if (moveResult) {
-              // 發送坐標格式移動到後端（使用 chess.js 解析的結果）
-              const serverResponse = await this.sendAIMoveToServer({
-                from: moveResult.from,
-                to: moveResult.to,
-                promotion: moveResult.promotion
+            // 如果移動失敗，嘗試重新獲取 AI 建議
+            console.log('嘗試重新獲取 AI 建議...');
+            try {
+              const retryResponse = await fetch('/api/game/ai-opponent', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  fen: this.chess.fen(),
+                  playerColor: this.getCurrentPlayerColor()
+                })
               });
+
+              const retryData = await retryResponse.json();
               
-              if (serverResponse && serverResponse.success) {
-                // 後端接受移動，更新棋盤
-          this.updateBoard();
-          this.checkGameStatus();
-                  this.updateGameStatus();
-                  this.showMessage(`AI 移動: ${aiMove}`);
-                  
-                  // 更新局勢分析框
-                  this.updatePositionAnalysis(aiMoveData);
-                  
-                  // 顯示 AI 的思考過程
-                if (aiMoveData.hint) {
-                  setTimeout(() => {
-                    this.showMessage(`AI 提示: ${aiMoveData.hint}`);
-                  }, 1000);
+              if (retryData.success && retryData.aiMove) {
+                // 解析新的 AI 響應
+                let newAiMoveData;
+                try {
+                  // 嘗試直接訪問 bestMove
+                  if (retryData.aiMove.bestMove) {
+                    newAiMoveData = retryData.aiMove;
+                  } else if (retryData.aiMove.output && retryData.aiMove.output.length > 0) {
+                    // 解析嵌套的響應結構，尋找包含 JSON 的 output_text
+                    let responseText = null;
+                    
+                    // 遍歷所有 output 項目，尋找包含 JSON 的內容
+                    for (let i = 0; i < retryData.aiMove.output.length; i++) {
+                      const output = retryData.aiMove.output[i];
+                      if (output.content && output.content.length > 0) {
+                        for (let j = 0; j < output.content.length; j++) {
+                          const content = output.content[j];
+                          if (content.text && this.isValidJSONResponse(content.text)) {
+                            responseText = content.text;
+                            break;
+                          }
+                        }
+                        if (responseText) break;
+                      }
+                    }
+                    
+                    if (responseText) {
+                      // 提取 JSON 部分（移除 ```json 和 ```）
+                      const jsonMatch = responseText.match(/```json\s*([\s\S]*?)\s*```/);
+                      if (jsonMatch) {
+                        newAiMoveData = JSON.parse(jsonMatch[1]);
+                      } else {
+                        // 嘗試直接解析整個文本
+                        newAiMoveData = JSON.parse(responseText);
+                      }
+                    }
+                  }
+                } catch (parseError) {
+                  console.error('Failed to parse retry AI response:', parseError);
+                  throw new Error('AI 響應解析失敗');
+                }
+                
+                if (newAiMoveData && newAiMoveData.bestMove) {
+                  // 嘗試使用新的 AI 建議
+                  await this.executeAIMove(newAiMoveData);
+                  console.log('使用新的 AI 建議成功');
+                } else {
+                  throw new Error('AI 響應格式錯誤');
                 }
               } else {
-                // 後端拒絕移動，恢復棋盤狀態
-                this.restoreBoardState();
-                this.showError('AI 移動被後端拒絕');
+                throw new Error('AI 服務返回錯誤');
               }
-            } else {
-              this.showError('AI 移動無效，請重新開始遊戲');
+            } catch (retryError) {
+              console.error('重新獲取 AI 建議失敗:', retryError);
+              this.showError('AI 移動失敗，請重新開始遊戲');
             }
-          } catch (moveError) {
-            console.error('Invalid AI move:', moveError);
-            console.error('AI move:', aiMove);
-            console.error('Current FEN:', this.chess.fen());
-            console.error('Available moves:', this.chess.moves());
-            this.showError('AI 移動無效: ' + aiMove + ' - ' + moveError.message);
           }
         }
       } else {
