@@ -27,7 +27,6 @@ wrangler login
 # 建立資源
 wrangler kv:namespace create "USERS"
 wrangler kv:namespace create "GAMES"
-wrangler d1 create chess-game-database
 
 # 更新 wrangler.toml 中的資源 ID
 
@@ -46,8 +45,7 @@ npm run deploy
   - `GameRoom` - 遊戲房間管理
   - `Lobby` - 大廳管理
 - **Cloudflare AI** - AI 模型推理
-- **KV Storage** - 用戶數據和遊戲記錄
-- **D1 Database** - 關聯式數據庫
+- **KV Storage** - 用戶數據和遊戲記錄存儲
 
 ### 前端
 - **Vanilla JavaScript** - 無框架前端
