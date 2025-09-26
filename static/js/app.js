@@ -177,6 +177,25 @@ class ChessGameApp {
     const token = localStorage.getItem('chess_token');
     if (token) {
       this.currentUser = JSON.parse(localStorage.getItem('chess_user'));
+      
+      // 檢查是否有未完成的房間
+      const savedRoomId = localStorage.getItem('chess_current_room_id');
+      if (savedRoomId) {
+        try {
+          // 嘗試恢復房間狀態
+          const roomRecovered = await this.recoverRoom(savedRoomId);
+          if (roomRecovered) {
+            console.log('成功恢復房間:', savedRoomId);
+            return; // 已恢復到遊戲視圖，不需要繼續
+          }
+        } catch (error) {
+          console.error('恢復房間失敗:', error);
+          // 清除無效的房間ID
+          localStorage.removeItem('chess_current_room_id');
+        }
+      }
+      
+      // 沒有房間需要恢復，顯示大廳
       this.showView('lobby');
     } else {
       this.showView('login');
@@ -311,8 +330,10 @@ class ChessGameApp {
       
       if (data.success) {
         this.currentRoom = data.room;
+        // 保存房間ID到localStorage
+        localStorage.setItem('chess_current_room_id', data.room.id);
         this.showView('game');
-        this.initializeGame();
+        this.initializeGame(data.room);
       } else {
         this.showError(data.error || '建立房間失敗');
       }
@@ -347,6 +368,8 @@ class ChessGameApp {
       
       if (data.success) {
         this.currentRoom = data.room;
+        // 保存房間ID到localStorage
+        localStorage.setItem('chess_current_room_id', data.room.id);
         
         // 清理通知狀態
         this.displayedNotifications = {
@@ -356,7 +379,7 @@ class ChessGameApp {
         };
         
         this.showView('game');
-        this.initializeGame();
+        this.initializeGame(data.room);
       } else {
         this.showError(data.error || '加入房間失敗');
       }
@@ -420,7 +443,7 @@ class ChessGameApp {
       if (data.success) {
         this.currentRoom = data.room;
         this.updateGameStatus();
-        this.initializeGame();
+        this.initializeGame(data.room);
         this.showMessage('遊戲開始！');
       } else {
         this.showError(data.error || '無法開始遊戲');
@@ -431,14 +454,50 @@ class ChessGameApp {
     }
   }
 
-  initializeGame() {
-    this.chess = new Chess();
+  initializeGame(roomData = null) {
+    // 如果有房間數據，使用房間的FEN狀態；否則使用初始狀態
+    if (roomData && roomData.fen) {
+      console.log('從房間數據恢復棋局狀態:', roomData.fen);
+      this.chess = new Chess(roomData.fen);
+    } else {
+      console.log('初始化新棋局');
+      this.chess = new Chess();
+    }
+    
     this.setupGameBoard();
     this.setupGameControls();
     this.connectToGame();
     this.updatePlayerInfo();
     this.updateGameStatus();
     this.clearPositionAnalysis();
+    
+    // 檢查是否輪到AI移動（特別是在恢復房間時）
+    this.checkAndTriggerAIMove();
+  }
+
+  // 檢查並觸發AI移動
+  checkAndTriggerAIMove() {
+    // 檢查是否輪到AI移動
+    if (this.currentRoom && 
+        this.currentRoom.status === 'playing' && 
+        this.chess && 
+        typeof this.chess.turn === 'function' && 
+        this.chess.turn() !== this.getCurrentPlayerColor()) {
+      
+      console.log('檢測到輪到AI移動，觸發AI移動');
+      console.log('當前輪次:', this.chess.turn());
+      console.log('當前玩家顏色:', this.getCurrentPlayerColor());
+      
+      // 延遲觸發AI移動，確保UI已經完全初始化
+      setTimeout(() => {
+        this.makeAIMove();
+      }, 1000);
+    } else {
+      console.log('不需要觸發AI移動');
+      console.log('房間狀態:', this.currentRoom?.status);
+      console.log('當前輪次:', this.chess?.turn?.());
+      console.log('當前玩家顏色:', this.getCurrentPlayerColor());
+    }
   }
 
   setupGameBoard() {
@@ -1247,15 +1306,11 @@ class ChessGameApp {
     try {
       this.showMessage('AI 正在思考...');
       
-      // 優先使用房間中儲存的 AI 等級，否則使用選擇器中的等級
-      const aiLevel = this.currentRoom?.aiLevel || document.getElementById('aiLevel')?.value || 2;
-      
       const response = await fetch('/api/game/ai-opponent', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           fen: this.chess.fen(),
-          level: parseInt(aiLevel),
           playerColor: this.getCurrentPlayerColor() === 'w' ? 'white' : 'black' // 人類玩家的顏色
         })
       });
@@ -1715,7 +1770,7 @@ class ChessGameApp {
       if (data.success) {
         this.showMessage('重賽請求已接受，開始新遊戲');
         // 重新初始化遊戲
-        this.initializeGame();
+        this.initializeGame(this.currentRoom);
       } else {
         this.showError(data.error || '接受重賽失敗');
       }
@@ -1780,9 +1835,12 @@ class ChessGameApp {
         this.clearAllModals();
         
         // 清理遊戲狀態
-      this.currentRoom = null;
-      this.chess = null;
+        this.currentRoom = null;
+        this.chess = null;
         this.game = null;
+        
+        // 清除房間ID
+        localStorage.removeItem('chess_current_room_id');
         
         // 清理通知狀態
         this.displayedNotifications = {
@@ -2146,12 +2204,57 @@ class ChessGameApp {
     }
   }
 
+  // 恢復房間狀態
+  async recoverRoom(roomId) {
+    try {
+      console.log('嘗試恢復房間:', roomId);
+      
+      // 調用房間恢復API
+      const response = await fetch('/api/game/recover', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('chess_token')}`
+        },
+        body: JSON.stringify({ roomId })
+      });
+      
+      const data = await response.json();
+      
+      if (data.success && data.room) {
+        // 恢復房間狀態
+        this.currentRoom = data.room;
+        
+        // 重新初始化遊戲
+        await this.initializeGame(data.room);
+        
+        // 顯示遊戲視圖
+        this.showView('game');
+        
+        // 開始輪詢
+        this.startGamePolling();
+        
+        this.showMessage(`歡迎回到房間: ${data.room.name}`);
+        return true;
+      } else {
+        console.log('房間恢復失敗:', data.error);
+        return false;
+      }
+    } catch (error) {
+      console.error('房間恢復錯誤:', error);
+      return false;
+    }
+  }
+
   // 登出功能
   logout() {
     localStorage.removeItem('chess_token');
     localStorage.removeItem('chess_user');
+    localStorage.removeItem('chess_current_room_id'); // 清除房間ID
     this.currentUser = null;
     this.currentRoom = null;
+    this.game = null;
+    this.chess = null;
     this.showView('login');
   }
 

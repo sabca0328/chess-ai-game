@@ -30,6 +30,11 @@ export default {
       });
     }
 
+    // 在每次請求時清理過期的房間（但不要太頻繁）
+    if (Math.random() < 0.1) { // 10% 的概率執行清理
+      ctx.waitUntil(cleanupExpiredRooms(env));
+    }
+
     try {
       // API 路由
       switch (path) {
@@ -69,6 +74,8 @@ export default {
           return handleRematch(request, env);
         case '/api/game/accept-rematch':
           return handleAcceptRematch(request, env);
+        case '/api/game/recover':
+          return handleRecoverRoom(request, env);
         case '/api/game/chat':
           return handleChat(request, env);
         case '/api/game/report':
@@ -797,7 +804,7 @@ async function handleAISuggest(request, env) {
 2. 吃子移動：e4xd5 (e4兵吃d5), d7xe6 (d7兵吃e6)
 3. 棋子移動：b8-c6 (馬從b8到c6), f1-c4 (象從f1到c4)
 4. 棋子吃子：f6xe4 (馬從f6吃e4), f1xc5 (象從f1吃c5)
-5. 王車易位：e1-g1 (短易位), e8-c8 (長易位)
+5. 王車易位：e1-g1 (白方短易位), e1-c1 (白方長易位), e8-g8 (黑方短易位), e8-c8 (黑方長易位)
 6. 升變：d7-d8=Q (兵從d7升變為后), f7-f8=N (兵從f7升變為馬)
 7. 將軍：f3-h4+ (馬將軍), h5-h8# (后將死)
 
@@ -1152,16 +1159,19 @@ async function handleAIOpponent(request, env) {
     // 使用重試機制調用 AI
     const response = await retryWithBackoff(async () => {
       return await env.AI.run('@cf/openai/gpt-oss-120b', {
-      input: `你是一個專業的西洋棋 AI 對手，等級 1（初學者）。
+      input: `你是一個專業的西洋棋 AI 對手。
 
 當前棋局 FEN: ${fen}
 你的顏色: ${aiColor === 'white' ? '白方' : '黑方'}
 對手顏色: ${playerColor === 'white' ? '白方' : '黑方'}
-當前輪到: ${aiColor === 'white' ? '白方' : '黑方'} (你)
+當前輪到: ${fen.split(' ')[1] === 'w' ? '白方' : '黑方'}
 
-重要提醒：你只能移動你顏色的棋子！${aiColor === 'white' ? '白方' : '黑方'}的棋子。
+重要提醒：
+1. 你只能移動你顏色的棋子！${aiColor === 'white' ? '白方' : '黑方'}的棋子。
+2. 當前輪到 ${fen.split(' ')[1] === 'w' ? '白方' : '黑方'}，你必須移動 ${aiColor === 'white' ? '白方' : '黑方'} 的棋子。
+3. 如果當前輪到 ${aiColor === 'white' ? '白方' : '黑方'}，你才能移動。如果輪到對手，請等待。
 
-請分析棋局並選擇最佳著法。作為初學者等級的 AI，請：
+請分析棋局並選擇最佳著法。作為專業的西洋棋 AI，請：
 - 快速選擇最佳著法
 - 優先考慮安全的移動
 - 避免複雜的戰術組合
@@ -1182,29 +1192,9 @@ async function handleAIOpponent(request, env) {
 - 吃子移動：e4xd5 (e4兵吃d5), d7xe6 (d7兵吃e6) 等
 - 棋子移動：b8-c6 (馬從b8到c6), f1-c4 (象從f1到c4) 等
 - 棋子吃子：f6xe4 (馬從f6吃e4), f1xc5 (象從f1吃c5) 等
-- 王車易位：e1-g1 (短易位), e8-c8 (長易位)
+- 王車易位：e1-g1 (白方短易位), e1-c1 (白方長易位), e8-g8 (黑方短易位), e8-c8 (黑方長易位)
 - 升變：d7-d8=Q (兵從d7升變為后), f7-f8=N (兵從f7升變為馬) 等
 - 將軍：f3-h4+ (馬將軍), h5-h8# (后將死)
-
-坐標格式優勢：
-- 完全避免歧義，每個移動都有明確的起始和目標位置
-- 格式統一：起始位置-目標位置 或 起始位置x目標位置
-- 吃子使用 'x' 符號，非吃子使用 '-' 符號
-- 升變在目標位置後加上 =棋子類型
-
-SAN 格式示例：
-- 兵移動：e4, d5, h3
-- 兵吃子：exd5, dxe4, hxg4
-- 馬移動：Nf6, Nc3, Nbd5
-- 馬吃子：Nxe4, Nxc5, Nbxg4
-- 象移動：Bc4, Bf4, Bg5
-- 象吃子：Bxc5, Bxf7, Bxg4
-- 車移動：Rd1, Rf1, Rae1
-- 車吃子：Rxe4, Rxf7, Raxc5
-- 后移動：Qd1, Qf3, Qh5
-- 后吃子：Qxe4, Qxf7, Qxh5
-- 王移動：Ke2, Kf1, Kg1
-- 王吃子：Kxe4, Kxf7 (很少見)
 
 重要規則：
 - 王不能移動到被攻擊的格子（會被將軍）
@@ -1218,7 +1208,7 @@ SAN 格式示例：
 注意：
 1. 回應必須是有效的 JSON 格式
 2. 當存在歧義時，必須使用文件或行提示來區分
-3. 移動格式必須使用標準代數記法 (SAN)
+3. 移動格式必須使用前面的坐標格式
 4. 所有移動必須是合法的西洋棋移動
 5. 吃子移動必須正確使用 'x' 符號
 6. 不要包含任何 markdown 格式或額外文字
@@ -1280,19 +1270,106 @@ SAN 格式示例：
       };
     }
     
+    // 後端合法性驗證與歸一化
+    const validated = validateAndNormalizeAIMove(fen, aiColor, aiResponse);
+
     return new Response(JSON.stringify({ 
       success: true, 
-      aiMove: aiResponse 
+      aiMove: validated 
     }), {
       headers: { 'Content-Type': 'application/json' },
     });
   } catch (error) {
     console.error('AI opponent error:', error);
-    return new Response(JSON.stringify({ error: 'AI 對手服務暫時無法使用' }), {
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+    return new Response(JSON.stringify({ 
+      error: 'AI 對手服務暫時無法使用',
+      details: error.message 
+    }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     });
   }
+}
+
+// ===== AI 移動驗證工具 =====
+function coordinateToMoveParts(coord) {
+  if (typeof coord !== 'string') return null;
+  const promoteMatch = coord.match(/^(\w\d)[-x](\w\d)=([QRNBqrbn])$/);
+  if (promoteMatch) {
+    return { from: promoteMatch[1], to: promoteMatch[2], promotion: promoteMatch[3].toLowerCase() };
+  }
+  const m = coord.match(/^(\w\d)[-x](\w\d)$/);
+  if (!m) return null;
+  return { from: m[1], to: m[2] };
+}
+
+function moveObjToCoordinate(moveObj) {
+  if (!moveObj) return null;
+  const isCapture = !!moveObj.captured;
+  const sep = isCapture ? 'x' : '-';
+  const promo = moveObj.promotion ? `=${moveObj.promotion.toUpperCase()}` : '';
+  return `${moveObj.from}${sep}${moveObj.to}${promo}`;
+}
+
+function validateAndNormalizeAIMove(fen, aiColor, aiResponse) {
+  const chess = new Chess(fen);
+  const turnColor = chess.turn() === 'w' ? 'white' : 'black';
+  if (turnColor !== aiColor) {
+    return {
+      bestMove: '',
+      alternativeMoves: [],
+      hint: aiResponse?.hint || 'AI 顏色與輪次不一致',
+      evaluation: aiResponse?.evaluation || aiResponse?.positionSummary || ''
+    };
+  }
+
+  const verboseMoves = chess.moves({ verbose: true });
+
+  function firstLegalFrom(list) {
+    if (!Array.isArray(list)) return null;
+    for (const mv of list) {
+      const parts = coordinateToMoveParts(mv);
+      if (!parts) continue;
+      
+      // 特別處理王車易位的情況
+      let found = null;
+      
+      // 檢查是否是王車易位
+      if ((parts.from === 'e1' && parts.to === 'g1') || // 白方短易位
+          (parts.from === 'e1' && parts.to === 'c1') || // 白方長易位
+          (parts.from === 'e8' && parts.to === 'g8') || // 黑方短易位
+          (parts.from === 'e8' && parts.to === 'c8')) { // 黑方長易位
+        found = verboseMoves.find(vm => vm.flags && vm.flags.includes('k') && vm.from === parts.from && vm.to === parts.to);
+      } else {
+        // 普通移動
+        found = verboseMoves.find(vm => vm.from === parts.from && vm.to === parts.to && (!parts.promotion || vm.promotion === parts.promotion));
+      }
+      
+      if (found) {
+        return moveObjToCoordinate(found);
+      }
+    }
+    return null;
+  }
+
+  let chosen = firstLegalFrom([aiResponse.bestMove]);
+  if (!chosen) chosen = firstLegalFrom(aiResponse.alternativeMoves);
+  if (!chosen) {
+    const nonCapture = verboseMoves.find(m => !m.captured) || verboseMoves[0];
+    if (nonCapture) chosen = moveObjToCoordinate(nonCapture);
+  }
+
+  return {
+    bestMove: chosen || aiResponse.bestMove,
+    alternativeMoves: aiResponse.alternativeMoves || [],
+    hint: aiResponse.hint || '',
+    evaluation: aiResponse.evaluation || aiResponse.positionSummary || ''
+  };
 }
 
 // 處理用戶心跳檢測
@@ -1982,6 +2059,145 @@ async function handleLeaveGame(request, env) {
   } catch (error) {
     console.error('Leave game error:', error);
     return new Response(JSON.stringify({ error: '離開遊戲失敗' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+}
+
+// 處理房間恢復
+async function handleRecoverRoom(request, env) {
+  // 只允許 POST 方法
+  if (request.method !== 'POST') {
+    return new Response(JSON.stringify({ error: 'Method not allowed' }), {
+      status: 405,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  }
+  
+  try {
+    const { roomId } = await request.json();
+    
+    if (!roomId) {
+      return new Response(JSON.stringify({ error: '缺少房間ID' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    
+    // 從Authorization header獲取用戶信息
+    const authHeader = request.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return new Response(JSON.stringify({ error: '未授權' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    
+    const token = authHeader.substring(7);
+    let userId;
+    
+    // 簡化的token解析 - 直接從用戶數據中查找
+    try {
+      let foundUser = null;
+      const users = await env.USERS.list();
+      
+      // 遍歷所有用戶，查找匹配的token
+      for (const key of users.keys) {
+        const userData = await env.USERS.get(key.name);
+        if (userData) {
+          const user = JSON.parse(userData);
+          if (user.token === token) {
+            foundUser = user;
+            break;
+          }
+        }
+      }
+      
+      if (!foundUser) {
+        console.log('Token not found:', token);
+        return new Response(JSON.stringify({ error: '無效的token' }), {
+          status: 401,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      
+      userId = foundUser.id;
+      console.log('Token verified for user:', foundUser.username);
+    } catch (error) {
+      console.error('Token verification error:', error);
+      return new Response(JSON.stringify({ error: 'token解析失敗' }), {
+        status: 401,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    
+    // 獲取房間數據
+    const roomData = await env.GAMES.get(roomId);
+    if (!roomData) {
+      return new Response(JSON.stringify({ error: '房間不存在' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    
+    const room = JSON.parse(roomData);
+    
+    // 檢查用戶是否曾經在這個房間中
+    const wasPlayer = room.players.some(p => p.id === userId);
+    const wasSpectator = room.spectators.some(s => s.id === userId);
+    
+    if (!wasPlayer && !wasSpectator) {
+      return new Response(JSON.stringify({ error: '您不在此房間中' }), {
+        status: 403,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    
+    // 檢查房間是否仍然有效（未結束且未關閉）
+    if (room.status === 'closed') {
+      return new Response(JSON.stringify({ error: '房間已關閉' }), {
+        status: 410,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+    
+    // 如果用戶是玩家，恢復其活躍狀態
+    if (wasPlayer) {
+      const playerIndex = room.players.findIndex(p => p.id === userId);
+      if (playerIndex !== -1) {
+        room.players[playerIndex].isActive = true;
+        room.players[playerIndex].lastSeen = new Date().toISOString();
+        console.log('Player ' + userId + ' recovered in room ' + roomId);
+      }
+    }
+    
+    // 如果用戶是觀戰者，恢復其活躍狀態
+    if (wasSpectator) {
+      const spectatorIndex = room.spectators.findIndex(s => s.id === userId);
+      if (spectatorIndex !== -1) {
+        room.spectators[spectatorIndex].isActive = true;
+        room.spectators[spectatorIndex].lastSeen = new Date().toISOString();
+        console.log('Spectator ' + userId + ' recovered in room ' + roomId);
+      }
+    }
+    
+    // 保存更新後的房間
+    await env.GAMES.put(roomId, JSON.stringify(room));
+    
+    console.log('Room ' + roomId + ' recovered for user ' + userId);
+    
+    return new Response(JSON.stringify({ 
+      success: true, 
+      room: room,
+      message: '房間恢復成功'
+    }), {
+      headers: { 'Content-Type': 'application/json' },
+    });
+    
+  } catch (error) {
+    console.error('Recover room error:', error);
+    return new Response(JSON.stringify({ error: '房間恢復失敗' }), {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
     });
@@ -2734,20 +2950,63 @@ async function handleForceCloseRoom(request, env) {
 
 // 延遲關閉已結束的遊戲房間
 async function scheduleRoomClosure(roomId, env) {
-  // 設置 30 秒後關閉房間
-  setTimeout(async () => {
-    try {
-      const roomData = await env.GAMES.get(roomId);
-      if (roomData) {
-        const room = JSON.parse(roomData);
-        // 只有當房間狀態仍然是 finished 時才關閉
-        if (room.status === 'finished') {
-          await env.GAMES.delete(roomId);
-          console.log('Room ' + roomId + ' auto-closed after game finished');
+  try {
+    // 在 Cloudflare Workers 中，我們使用 KV 存儲來標記房間需要關閉
+    // 並設置一個較短的過期時間
+    const closureData = {
+      roomId: roomId,
+      scheduledAt: new Date().toISOString(),
+      expiresAt: new Date(Date.now() + 30 * 1000).toISOString() // 30秒後過期
+    };
+    
+    // 使用 KV 存儲來標記房間關閉
+    await env.GAMES.put(`closure_${roomId}`, JSON.stringify(closureData), {
+      expirationTtl: 60 // 60秒後自動刪除
+    });
+    
+    console.log('Room ' + roomId + ' scheduled for closure in 30 seconds');
+    
+    // 立即檢查並清理過期的房間
+    await cleanupExpiredRooms(env);
+    
+  } catch (error) {
+    console.error('Error scheduling room closure:', error);
+  }
+}
+
+// 清理過期的房間
+async function cleanupExpiredRooms(env) {
+  try {
+    const allKeys = await env.GAMES.list();
+    const now = new Date();
+    
+    for (const key of allKeys.keys) {
+      // 檢查是否是房間關閉標記
+      if (key.name.startsWith('closure_')) {
+        const closureData = await env.GAMES.get(key.name);
+        if (closureData) {
+          const closure = JSON.parse(closureData);
+          const expiresAt = new Date(closure.expiresAt);
+          
+          // 如果已過期，刪除房間
+          if (now >= expiresAt) {
+            const roomId = closure.roomId;
+            const roomData = await env.GAMES.get(roomId);
+            
+            if (roomData) {
+              const room = JSON.parse(roomData);
+              // 只有當房間狀態仍然是 finished 時才關閉
+              if (room.status === 'finished') {
+                await env.GAMES.delete(roomId);
+                await env.GAMES.delete(key.name); // 刪除關閉標記
+                console.log('Room ' + roomId + ' auto-closed after game finished');
+              }
+            }
+          }
         }
       }
-    } catch (error) {
-      console.error('Error auto-closing room:', error);
     }
-  }, 30 * 1000); // 30 秒
+  } catch (error) {
+    console.error('Error cleaning up expired rooms:', error);
+  }
 }
